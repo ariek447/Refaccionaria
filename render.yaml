@@ -17,6 +17,10 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_KEY
         sync: false
+      - key: ADMIN_PASSWORD # contraseña del panel (mínimo 12 caracteres)
+        sync: false
+      - key: AUTH_SECRET # Render genera un valor aleatorio automáticamente
+        generateValue: true
       - key: FRONTEND_URL # p. ej. https://refaccionaria-web.onrender.com
         sync: false
 

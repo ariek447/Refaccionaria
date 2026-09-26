@@ -28,6 +28,7 @@ npm run preview                                                 # sirve dist/ lo
 
 | Ruta           | Página                                                                 |
 | -------------- | ---------------------------------------------------------------------- |
+| `/login`       | Inicio de sesión del administrador (única ruta pública)                |
 | `/`            | Dashboard: totales, valor de inventario, stock bajo, registros recientes |
 | `/usuarios`    | CRUD de usuarios; el detalle muestra sus automóviles                   |
 | `/automoviles` | CRUD de automóviles con selector de propietario; filtro `?propietario=ID` |
@@ -37,13 +38,17 @@ npm run preview                                                 # sirve dist/ lo
 
 ```
 src/
-├── api/client.js          # fetch a la API + manejo de errores (ApiError)
-├── components/            # Layout, Modal, ConfirmDialog, DataTable, Toast, Form, ...
+├── api/client.js          # fetch a la API + header Authorization + manejo de 401
+├── auth/
+│   ├── AuthContext.jsx    # estado de sesión: login(), logout(), isAuthenticated
+│   └── tokenStorage.js    # guarda el token en sessionStorage
+├── components/            # Layout, RequireAuth, Modal, ConfirmDialog, DataTable, Toast, Form, ...
 ├── hooks/
 │   ├── useCrud.js         # listado + crear/editar/eliminar + notificaciones
 │   ├── useForm.js         # estado y validación de formularios
 │   └── useFetch.js        # petición simple con estados loading/error
 ├── pages/
+│   ├── LoginPage.jsx
 │   ├── DashboardPage.jsx
 │   ├── users/             # UsersPage, UserForm, UserDetails
 │   ├── cars/              # CarsPage, CarForm, CarDetails
@@ -58,3 +63,12 @@ src/
 
 Formularios en **modales** (`<dialog>` nativo). La interfaz es responsive: menú lateral en escritorio,
 barra superior en tablet/móvil, y las tablas se convierten en tarjetas en pantallas angostas.
+
+## Sesión
+
+- Todas las rutas excepto `/login` están envueltas en `RequireAuth`: sin token redirige a `/login`
+  y, tras iniciar sesión, regresa a la página que se había solicitado.
+- El token se guarda en `sessionStorage` (se borra al cerrar la pestaña) y `api/client.js` lo envía en
+  cada petición como `Authorization: Bearer <token>`.
+- Si la API responde `401`, se borra el token y se muestra el login con el aviso "Tu sesión expiró".
+- "Cerrar sesión" (barra lateral) borra el token del navegador.

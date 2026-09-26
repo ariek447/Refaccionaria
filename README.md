@@ -2,7 +2,8 @@
 
 Aplicación web para una refaccionaria que permite administrar **usuarios (clientes)**, sus **automóviles** y el inventario de **piezas/refacciones**, con CRUD completo y un dashboard de resumen.
 
-> **Nota:** la tabla `users` representa a los **clientes** de la refaccionaria, no a usuarios con inicio de sesión. El sistema no implementa autenticación.
+> **Nota:** la tabla `users` representa a los **clientes** de la refaccionaria, no a quien inicia sesión.
+> El acceso al panel está protegido con una **contraseña de administrador** (ver [Autenticación](#autenticación-del-administrador)).
 
 ---
 
@@ -17,8 +18,9 @@ Aplicación web para una refaccionaria que permite administrar **usuarios (clien
 7. [Instalación y ejecución local](#instalación-y-ejecución-local)
 8. [API REST (endpoints)](#api-rest)
 9. [Ejemplos de requests](#ejemplos-de-requests)
-10. [Deployment en Render](#deployment-en-render)
-11. [Seguridad](#seguridad)
+10. [Autenticación del administrador](#autenticación-del-administrador)
+11. [Deployment en Render](#deployment-en-render)
+12. [Seguridad](#seguridad)
 
 ---
 
@@ -40,8 +42,9 @@ Aplicación web para una refaccionaria que permite administrar **usuarios (clien
 │  Frontend React  │ ─────────────► │  Backend Express   │ ─────────────► │     Supabase     │
 │  (Static Site)   │  /api/...      │  (Web Service)     │                │   (PostgreSQL)   │
 └──────────────────┘ ◄───────────── └────────────────────┘ ◄───────────── └──────────────────┘
-   Sin credenciales                   Tiene las credenciales
-                                      en variables de entorno
+   Sin credenciales;                  Tiene las credenciales
+   solo guarda el token               en variables de entorno
+   de sesión del admin                y valida el token
 ```
 
 - El **frontend nunca se conecta a la base de datos**: todas las operaciones pasan por el backend.
@@ -50,15 +53,15 @@ Aplicación web para una refaccionaria que permite administrar **usuarios (clien
 **Flujo de una petición en el backend:**
 
 ```
-routes  →  middleware (validación)  →  controller  →  service  →  Supabase
-                                                          │
-                     errorHandler (respuesta de error) ◄──┘ (si algo falla)
+routes  →  requireAuth (token)  →  validación  →  controller  →  service  →  Supabase
+                                                                        │
+                                   errorHandler (respuesta de error) ◄──┘ (si algo falla)
 ```
 
 | Capa             | Responsabilidad                                                              |
 | ---------------- | ---------------------------------------------------------------------------- |
 | `routes/`        | Define los endpoints y qué middlewares/controladores se ejecutan.            |
-| `middleware/`    | Validación/sanitización del body y del `:id`; manejo centralizado de errores. |
+| `middleware/`    | Autenticación (token y límite de intentos), validación/sanitización y manejo centralizado de errores. |
 | `validators/`    | Reglas de validación de cada recurso (declarativas).                         |
 | `controllers/`   | Reciben la petición HTTP y devuelven la respuesta con el código correcto.    |
 | `services/`      | Consultas a Supabase. Traducen errores de PostgreSQL a errores HTTP.         |
@@ -81,11 +84,11 @@ El hook `useCrud` concentra la lógica de carga, guardado, eliminación y notifi
 ├── backend/
 │   ├── src/
 │   │   ├── config/          # env.js, supabase.js, cors.js
-│   │   ├── controllers/     # crudController.js + un archivo por recurso + dashboard
-│   │   ├── middleware/      # validate.js, errorHandler.js
+│   │   ├── controllers/     # crudController.js + un archivo por recurso + dashboard + auth
+│   │   ├── middleware/      # auth.js, loginRateLimit.js, validate.js, errorHandler.js
 │   │   ├── routes/          # index.js (monta todo), crudRoutes.js
 │   │   ├── services/        # crudService.js + users/cars/parts/dashboard
-│   │   ├── utils/           # httpError.js, dbErrors.js
+│   │   ├── utils/           # httpError.js, dbErrors.js, token.js
 │   │   ├── validators/      # schemas.js (reglas de validación)
 │   │   └── server.js        # punto de entrada
 │   ├── package.json
@@ -93,10 +96,11 @@ El hook `useCrud` concentra la lógica de carga, guardado, eliminación y notifi
 │   └── README.md
 ├── frontend/
 │   ├── src/
-│   │   ├── api/client.js    # llamadas a la API (fetch)
-│   │   ├── components/      # Layout, Modal, DataTable, Toast, Form, ...
+│   │   ├── api/client.js    # llamadas a la API (fetch + token)
+│   │   ├── auth/            # AuthContext.jsx, tokenStorage.js
+│   │   ├── components/      # Layout, RequireAuth, Modal, DataTable, Toast, Form, ...
 │   │   ├── hooks/           # useCrud, useForm, useFetch
-│   │   ├── pages/           # Dashboard, users/, cars/, parts/
+│   │   ├── pages/           # Login, Dashboard, users/, cars/, parts/
 │   │   ├── utils/           # validators.js, format.js
 │   │   ├── App.jsx          # rutas
 │   │   ├── main.jsx
@@ -170,9 +174,12 @@ El script completo está en [`database/schema.sql`](database/schema.sql).
 | `NODE_ENV`          | `development` o `production`.                                                                | `development`                             |
 | `SUPABASE_URL`      | URL del proyecto de Supabase. **Obligatoria.**                                               | `https://abcd.supabase.co`                |
 | `SUPABASE_SERVICE_KEY` | Llave service_role / secret del proyecto. **Obligatoria y secreta.**                     | `eyJhbGciOi...`                           |
+| `ADMIN_PASSWORD`    | Contraseña del administrador para entrar al panel. **Obligatoria.** Mínimo 12 caracteres en producción. | `una-frase-larga-y-dificil` |
+| `AUTH_SECRET`       | Llave secreta con la que se firman los tokens de sesión. **Obligatoria.** Mínimo 32 caracteres en producción. | 64 caracteres hex aleatorios |
 | `FRONTEND_URL`      | Dominio(s) del frontend permitidos por CORS, separados por coma, sin `/` final.              | `https://refaccionaria-web.onrender.com`  |
 
-Si falta `SUPABASE_URL` o `SUPABASE_SERVICE_KEY`, el servidor no arranca y muestra qué variable falta.
+Si falta alguna variable obligatoria (o en producción `ADMIN_PASSWORD`/`AUTH_SECRET` son demasiado cortas),
+el servidor no arranca y muestra qué variable debe corregirse.
 
 ### Frontend (`frontend/.env`)
 
@@ -194,9 +201,15 @@ Requisitos: **Node.js 22.22 o superior** y un proyecto de Supabase con el esquem
 ```bash
 cd backend
 cp .env.example .env      # en Windows (PowerShell): Copy-Item .env.example .env
-# edita .env con tu SUPABASE_URL y SUPABASE_SERVICE_KEY
+# edita .env: SUPABASE_URL, SUPABASE_SERVICE_KEY, ADMIN_PASSWORD y AUTH_SECRET
 npm install
 npm run dev               # http://localhost:4000  (se reinicia al guardar cambios)
+```
+
+Para generar `AUTH_SECRET`:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 Prueba: <http://localhost:4000/api/health> → `{"status":"ok"}`
@@ -213,6 +226,7 @@ npm run dev               # http://localhost:5173
 
 En desarrollo no hace falta crear `frontend/.env`: Vite redirige automáticamente las
 peticiones `/api/*` a `http://localhost:4000` (ver `vite.config.js`).
+Abre <http://localhost:5173> e inicia sesión con el valor de `ADMIN_PASSWORD`.
 
 ---
 
@@ -220,10 +234,12 @@ peticiones `/api/*` a `http://localhost:4000` (ver `vite.config.js`).
 
 URL base: `http://localhost:4000/api` (local) o `https://<tu-backend>.onrender.com/api` (producción).
 Todas las peticiones y respuestas usan JSON.
+Todos los endpoints **excepto `/health` y `/login`** requieren el header `Authorization: Bearer <token>`.
 
 | Método | Endpoint          | Descripción                                        | Respuesta OK |
 | ------ | ----------------- | -------------------------------------------------- | ------------ |
-| GET    | `/health`         | Estado del servicio                                | 200          |
+| GET    | `/health`         | Estado del servicio *(público)*                    | 200          |
+| POST   | `/login`          | Inicia sesión: `{ password }` → `{ token, expiresAt }` *(público)* | 200 |
 | GET    | `/dashboard`      | Estadísticas para el dashboard                     | 200          |
 | GET    | `/users`          | Listar usuarios                                    | 200          |
 | GET    | `/users/:id`      | Consultar usuario **(incluye sus automóviles)**    | 200          |
@@ -248,8 +264,10 @@ Todas las peticiones y respuestas usan JSON.
 | 200    | Consulta, edición o eliminación correcta.                                                  |
 | 201    | Registro creado.                                                                           |
 | 400    | Datos inválidos, JSON mal formado, id no numérico o propietario inexistente.               |
+| 401    | Sin token, token inválido/expirado, o contraseña incorrecta en `/login`.                   |
 | 404    | El registro o la ruta no existen.                                                          |
 | 409    | Conflicto: dato duplicado (email, VIN, placas, número de parte) o usuario con automóviles. |
+| 429    | Demasiados intentos de login fallidos (5 por IP cada 15 minutos).                          |
 | 500    | Error interno (el detalle solo se registra en el servidor).                                |
 
 Formato de error:
@@ -281,10 +299,37 @@ Con `curl` (en PowerShell usa `curl.exe`). Reemplaza la URL base según el entor
 API=http://localhost:4000/api
 ```
 
+**Iniciar sesión** (obligatorio antes de las demás peticiones)
+
+```bash
+curl -X POST $API/login \
+  -H "Content-Type: application/json" \
+  -d '{ "password": "tu-ADMIN_PASSWORD" }'
+```
+
+Respuesta `200`:
+
+```json
+{ "token": "eyJzdWIiOiJhZG1pbiIs...fQ.hTio9x1HTILARuSq...", "expiresAt": "2026-09-27T17:59:18.584Z" }
+```
+
+Guarda el token y envíalo en cada petición:
+
+```bash
+TOKEN=eyJzdWIiOiJhZG1pbiIs...   # el valor de "token"
+AUTH="Authorization: Bearer $TOKEN"
+```
+
+Sin token (o con uno vencido) cualquier endpoint protegido responde `401`:
+
+```json
+{ "error": "Sesión inválida o expirada. Inicia sesión de nuevo." }
+```
+
 **Crear usuario**
 
 ```bash
-curl -X POST $API/users \
+curl -X POST $API/users -H "$AUTH" \
   -H "Content-Type: application/json" \
   -d '{
     "first_name": "Juan",
@@ -312,7 +357,7 @@ Respuesta `201`:
 **Crear automóvil para el usuario 1**
 
 ```bash
-curl -X POST $API/cars \
+curl -X POST $API/cars -H "$AUTH" \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": 1,
@@ -345,7 +390,7 @@ Respuesta `201` (incluye el propietario):
 **Consultar un usuario con sus automóviles**
 
 ```bash
-curl $API/users/1
+curl $API/users/1 -H "$AUTH"
 ```
 
 ```json
@@ -363,7 +408,7 @@ curl $API/users/1
 **Crear pieza**
 
 ```bash
-curl -X POST $API/parts \
+curl -X POST $API/parts -H "$AUTH" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Filtro de aceite",
@@ -379,7 +424,7 @@ curl -X POST $API/parts \
 **Editar pieza** (PUT envía el registro completo)
 
 ```bash
-curl -X PUT $API/parts/1 \
+curl -X PUT $API/parts/1 -H "$AUTH" \
   -H "Content-Type: application/json" \
   -d '{ "name": "Filtro de aceite", "part_number": "BOS-0451103", "price": 159, "stock": 20 }'
 ```
@@ -387,7 +432,7 @@ curl -X PUT $API/parts/1 \
 **Eliminar un usuario que tiene automóviles** → `409`
 
 ```bash
-curl -X DELETE $API/users/1
+curl -X DELETE $API/users/1 -H "$AUTH"
 ```
 
 ```json
@@ -397,7 +442,7 @@ curl -X DELETE $API/users/1
 **Dashboard**
 
 ```bash
-curl $API/dashboard
+curl $API/dashboard -H "$AUTH"
 ```
 
 ```json
@@ -410,6 +455,65 @@ curl $API/dashboard
   "recentUsers": [{ "id": 3, "first_name": "Luis", "last_name": "Ramírez", "phone": "6149876543", "email": null }]
 }
 ```
+
+---
+
+## Autenticación del administrador
+
+El panel completo (dashboard, usuarios, automóviles y piezas) requiere iniciar sesión con una
+**contraseña de administrador**. No hay tabla de administradores: la contraseña vive en la variable
+de entorno `ADMIN_PASSWORD` del backend, igual que las credenciales de Supabase.
+
+### Configurar `ADMIN_PASSWORD` y `AUTH_SECRET`
+
+| Entorno     | Dónde                                              | Cómo |
+| ----------- | -------------------------------------------------- | ---- |
+| Desarrollo  | `backend/.env`                                     | `ADMIN_PASSWORD=...` y `AUTH_SECRET=...` (genera el secreto con el comando de [Instalación](#backend)). |
+| Producción  | Render → Web Service del backend → **Environment** | Agrega `ADMIN_PASSWORD` (mínimo 12 caracteres) y `AUTH_SECRET` (mínimo 32; con el Blueprint, Render lo genera solo). |
+
+- Para **cambiar la contraseña** basta con editar `ADMIN_PASSWORD`; Render reinicia el servicio.
+- Para **cerrar todas las sesiones abiertas** (por ejemplo, si se sospecha que un token se filtró), cambia `AUTH_SECRET`: todos los tokens anteriores dejan de ser válidos.
+
+### Cómo funciona
+
+```
+ Navegador                                   Backend
+ ─────────                                   ───────
+ 1. POST /api/login { password } ─────────►  compara con ADMIN_PASSWORD (tiempo constante)
+                                             ✔ correcta → crea token firmado (24 h)
+    guarda token en sessionStorage ◄───────  { token, expiresAt }
+
+ 2. GET /api/users
+    Authorization: Bearer <token> ────────►  requireAuth: verifica firma HMAC y expiración
+                                             ✔ válido → continúa al controlador
+                                             ✘ inválido/expirado → 401
+
+ 3. Recibe 401 → borra el token y redirige a /login ("Tu sesión expiró")
+```
+
+- **Token:** `base64url(payload).base64url(firma)`, con payload `{ sub: "admin", iat, exp }` y
+  firma **HMAC-SHA256** usando `AUTH_SECRET` (`crypto` de Node, sin dependencias). Es la misma idea que un JWT HS256.
+  Si alguien modifica el payload (por ejemplo, para alargar la expiración), la firma deja de coincidir.
+- **Sin estado (stateless):** el servidor no guarda sesiones; solo recalcula la firma. Por eso las
+  sesiones sobreviven a los reinicios de Render.
+- **Expiración:** 24 horas.
+- **Cierre de sesión:** el botón "Cerrar sesión" borra el token del navegador. No hay lista negra en el
+  servidor; como contrapartida el token dura como máximo 24 h, `sessionStorage` se borra al cerrar la
+  pestaña y cambiar `AUTH_SECRET` invalida todos los tokens de inmediato.
+- **Fuerza bruta:** después de 5 contraseñas incorrectas desde la misma IP, `/login` responde `429` durante 15 minutos.
+- Las comparaciones de contraseña y de firma usan `crypto.timingSafeEqual` para no filtrar información por el tiempo de respuesta.
+
+### ¿Por qué es más seguro que un CRUD abierto?
+
+| Sin login (CRUD abierto) | Con login de administrador |
+| ------------------------ | -------------------------- |
+| Cualquiera que conozca la URL del frontend o de la API puede ver los datos personales de los clientes y crear, editar o borrar registros. | Sin la contraseña, la API responde `401` a todo excepto `/health` y `/login`. |
+| CORS no protege: solo lo respetan los navegadores; `curl` o Postman lo ignoran. | El token se verifica en el servidor en **cada** petición, venga de donde venga. |
+| No hay forma de "cerrar" el acceso. | Se puede cambiar la contraseña o invalidar todas las sesiones cambiando `AUTH_SECRET`. |
+| Adivinar la URL es suficiente. | Adivinar la contraseña está limitado a 5 intentos cada 15 minutos por IP. |
+
+Límites conocidos (aceptables para este proyecto): hay un solo administrador (no hay usuarios con roles),
+y el límite de intentos vive en memoria (se reinicia si el servidor se reinicia).
 
 ---
 
@@ -448,6 +552,8 @@ En la sección **Environment**:
 | `NODE_ENV`          | `production`                                              |
 | `SUPABASE_URL`      | URL de tu proyecto de Supabase                            |
 | `SUPABASE_SERVICE_KEY` | service_role / secret key de Supabase                  |
+| `ADMIN_PASSWORD`    | Contraseña del panel (mínimo 12 caracteres)               |
+| `AUTH_SECRET`       | Cadena aleatoria de al menos 32 caracteres (usa el comando de [Instalación](#backend)) |
 | `FRONTEND_URL`      | Déjala pendiente por ahora; se completa en el paso 9      |
 
 No configures `PORT`: Render la asigna y el servidor usa `process.env.PORT`.
@@ -498,25 +604,28 @@ Render reiniciará el backend automáticamente.
 
 ### 10. Probar la aplicación publicada
 
-1. Abre la URL del frontend.
+1. Abre la URL del frontend: debe aparecer la pantalla de login. Entra con `ADMIN_PASSWORD`.
 2. Crea un usuario, luego un automóvil asignado a ese usuario y una pieza.
 3. Edita y elimina registros; revisa que el dashboard se actualice.
 4. Intenta eliminar un usuario con automóviles: debe mostrarse el aviso de que no es posible.
+5. Presiona "Cerrar sesión" y verifica que ya no puedes entrar a las secciones sin volver a iniciar sesión.
 
 > En el plan gratuito, el backend se "duerme" tras 15 minutos sin uso; la primera petición puede tardar ~1 minuto. Abre `/api/health` unos minutos antes de la presentación.
 
 ### Alternativa: Blueprint (`render.yaml`)
 
 El repositorio incluye `render.yaml`. En Render: **New → Blueprint** → selecciona el repositorio;
-creará ambos servicios y pedirá `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `FRONTEND_URL` y `VITE_API_URL`.
+creará ambos servicios y pedirá `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `ADMIN_PASSWORD`, `FRONTEND_URL` y `VITE_API_URL`
+(`AUTH_SECRET` se genera automáticamente).
 
 ---
 
 ## Seguridad
 
+- **Panel protegido con login de administrador**: todos los endpoints de datos exigen un token firmado (HMAC-SHA256, 24 h); límite de 5 intentos de login por IP cada 15 minutos. Ver [Autenticación](#autenticación-del-administrador).
 - **Credenciales solo en el backend**, vía variables de entorno; `.env` excluido de Git.
 - **El frontend no tiene acceso a la base de datos**: solo conoce la URL pública de la API.
-- **CORS**: en producción solo se aceptan peticiones del dominio definido en `FRONTEND_URL`; en desarrollo se permite `localhost`.
+- **CORS**: en producción solo se aceptan peticiones del dominio definido en `FRONTEND_URL`; en desarrollo se permite `localhost`. (CORS complementa, no reemplaza, la autenticación.)
 - **Validación y sanitización** en el backend (y también en el frontend para mejor experiencia): lista blanca de campos, recorte de espacios, tipos, longitudes, formatos y rangos.
 - **Restricciones en la base de datos** (NOT NULL, UNIQUE, CHECK, FK) como última línea de defensa.
 - **Consultas parametrizadas**: `supabase-js` no concatena SQL, evitando inyección SQL. React escapa el contenido mostrado (evita XSS).

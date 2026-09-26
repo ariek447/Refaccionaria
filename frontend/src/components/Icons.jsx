@@ -13,6 +13,8 @@ const paths = {
   alert: 'M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z',
   close: 'M18 6 6 18M6 6l12 12',
   money: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
+  logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5m5 5H9',
+  lock: 'M5 11h14v10H5zm2 0V7a5 5 0 0 1 10 0v4',
 };
 
 export default function Icon({ name, size = 18 }) {

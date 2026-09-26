@@ -1,3 +1,5 @@
+import { clearToken, getToken } from '../auth/tokenStorage.js';
+
 // URL base de la API. En producción viene de VITE_API_URL; en desarrollo
 // se usa "/api" y el proxy de Vite la redirige al backend local.
 const API_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
@@ -11,12 +13,24 @@ export class ApiError extends Error {
   }
 }
 
+// Función que se ejecuta cuando la API responde 401 (la registra AuthContext)
+let onUnauthorized = () => {};
+export function setUnauthorizedHandler(handler) {
+  onUnauthorized = handler;
+}
+
 async function request(path, { method = 'GET', body } = {}) {
+  const headers = {};
+  if (body) headers['Content-Type'] = 'application/json';
+
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
   let response;
   try {
     response = await fetch(`${API_URL}${path}`, {
       method,
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      headers,
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch {
@@ -29,6 +43,14 @@ async function request(path, { method = 'GET', body } = {}) {
   }
 
   const data = await response.json();
+
+  // Token ausente, inválido o expirado: se cierra la sesión y la app redirige al login.
+  // (En /login un 401 solo significa "contraseña incorrecta".)
+  if (response.status === 401 && path !== '/login') {
+    clearToken();
+    onUnauthorized();
+  }
+
   if (!response.ok) {
     throw new ApiError(data?.error || 'Ocurrió un error inesperado.', response.status, data?.details);
   }
@@ -46,6 +68,7 @@ function createResourceApi(resource) {
   };
 }
 
+export const authApi = { login: (password) => request('/login', { method: 'POST', body: { password } }) };
 export const usersApi = createResourceApi('users');
 export const carsApi = createResourceApi('cars');
 export const partsApi = createResourceApi('parts');

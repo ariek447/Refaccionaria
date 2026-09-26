@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router';
+import { useAuth } from '../auth/AuthContext.jsx';
 import Icon from './Icons.jsx';
 
 const NAV_ITEMS = [
@@ -9,6 +10,8 @@ const NAV_ITEMS = [
 ];
 
 export default function Layout() {
+  const { logout } = useAuth();
+
   return (
     <div className="layout">
       <aside className="sidebar">
@@ -24,6 +27,10 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
+        <button type="button" className="sidebar__logout" onClick={logout} aria-label="Cerrar sesión" title="Cerrar sesión">
+          <Icon name="logout" />
+          <span>Cerrar sesión</span>
+        </button>
       </aside>
       <main className="content">
         <Outlet />

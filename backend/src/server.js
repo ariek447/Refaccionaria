@@ -8,6 +8,10 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
 const app = express();
 
+// Render pone un proxy delante de la app: así req.ip es la IP real del cliente
+// (la usa el límite de intentos de login)
+app.set('trust proxy', 1);
+
 app.use(helmet()); // Cabeceras HTTP de seguridad
 app.use(cors(corsOptions)); // Solo el frontend autorizado puede llamar a la API
 app.use(express.json({ limit: '10kb' })); // Limita el tamaño del body
