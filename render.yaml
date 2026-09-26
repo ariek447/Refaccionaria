@@ -1,0 +1,37 @@
+# Blueprint de Render (opcional): crea backend y frontend en un solo paso.
+# Render > New > Blueprint > selecciona este repositorio.
+# Los valores marcados con "sync: false" se piden durante la creación.
+services:
+  # ---------- Backend: API REST (Web Service) ----------
+  - type: web
+    name: refaccionaria-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: FRONTEND_URL # p. ej. https://refaccionaria-web.onrender.com
+        sync: false
+
+  # ---------- Frontend: React + Vite (Static Site) ----------
+  - type: web
+    name: refaccionaria-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    # Necesario para React Router: cualquier ruta sirve index.html
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL # p. ej. https://refaccionaria-api.onrender.com/api
+        sync: false
