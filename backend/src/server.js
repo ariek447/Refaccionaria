@@ -1,3 +1,6 @@
+import path from 'node:path';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -7,6 +10,9 @@ import apiRoutes from './routes/index.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
 const app = express();
+const frontendDist = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../frontend/dist');
+const frontendIndex = path.join(frontendDist, 'index.html');
+const serveFrontend = existsSync(frontendIndex);
 
 // Render pone un proxy delante de la app: así req.ip es la IP real del cliente
 // (la usa el límite de intentos de login)
@@ -18,10 +24,23 @@ app.use(express.json({ limit: '10kb' })); // Limita el tamaño del body
 
 app.use('/api', apiRoutes);
 
+if (serveFrontend) {
+  app.use(express.static(frontendDist));
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    if (req.path.startsWith('/api')) return next();
+    if (path.extname(req.path)) return next();
+    res.sendFile(frontendIndex, (err) => (err ? next(err) : undefined));
+  });
+}
+
 app.use(notFoundHandler);
 app.use(errorHandler);
 
 // Render asigna el puerto mediante process.env.PORT
 app.listen(env.port, () => {
   console.log(`API escuchando en el puerto ${env.port} (${env.nodeEnv})`);
+  if (serveFrontend) {
+    console.log('Sirviendo el frontend desde frontend/dist');
+  }
 });

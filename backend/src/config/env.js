@@ -34,8 +34,11 @@ export const env = {
   adminPassword: process.env.ADMIN_PASSWORD,
   authSecret: process.env.AUTH_SECRET, // llave para firmar los tokens de sesión
   // Permite uno o varios dominios separados por coma, sin "/" final
-  frontendUrls: (process.env.FRONTEND_URL || '')
-    .split(',')
+  frontendUrls: [
+    process.env.FRONTEND_URL,
+    process.env.RENDER_EXTERNAL_URL, // mismo origen cuando Express sirve el panel
+  ]
+    .flatMap((value) => (value || '').split(','))
     .map((url) => url.trim().replace(/\/+$/, ''))
     .filter(Boolean),
 };
