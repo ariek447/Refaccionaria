@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -10,5 +11,16 @@ if (!process.env.RENDER) {
 
 const frontendDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../frontend');
 
+if (!existsSync(path.join(frontendDir, 'package.json'))) {
+  console.error(`No se encontró el frontend en ${frontendDir}`);
+  console.error('En Render, Root Directory debe ser "backend" (el repo completo se clona igual).');
+  process.exit(1);
+}
+
 console.log('Construyendo el frontend para producción…');
-execSync('npm install && npm run build', { cwd: frontendDir, stdio: 'inherit' });
+// Vite está en devDependencies: hay que instalarlas aunque Render use NODE_ENV=production.
+execSync('npm install --include=dev && npm run build', {
+  cwd: frontendDir,
+  stdio: 'inherit',
+  env: { ...process.env, NODE_ENV: 'development' },
+});
