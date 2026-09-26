@@ -15,7 +15,7 @@ services:
         value: production
       - key: SUPABASE_URL
         sync: false
-      - key: SUPABASE_ANON_KEY
+      - key: SUPABASE_SERVICE_KEY
         sync: false
       - key: FRONTEND_URL # p. ej. https://refaccionaria-web.onrender.com
         sync: false

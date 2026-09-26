@@ -63,20 +63,13 @@ create table if not exists public.parts (
 
 -- ---------------------------------------------------------------------
 -- SEGURIDAD (Row Level Security)
--- El backend es el único que se conecta a Supabase (con la anon key,
--- guardada como variable de entorno en el servidor). Habilitamos RLS
--- y definimos políticas explícitas para el rol "anon" que usa el backend.
+-- El backend es el único que se conecta a Supabase, usando la service key
+-- (rol service_role), que omite RLS. Habilitamos RLS SIN políticas: así la
+-- anon key (pública) no puede leer ni escribir nada directamente, y toda
+-- operación tiene que pasar por el backend.
 -- ---------------------------------------------------------------------
 alter table public.users enable row level security;
 alter table public.cars  enable row level security;
 alter table public.parts enable row level security;
 
-grant select, insert, update, delete on public.users, public.cars, public.parts to anon;
-
-drop policy if exists "backend full access" on public.users;
-drop policy if exists "backend full access" on public.cars;
-drop policy if exists "backend full access" on public.parts;
-
-create policy "backend full access" on public.users for all to anon using (true) with check (true);
-create policy "backend full access" on public.cars  for all to anon using (true) with check (true);
-create policy "backend full access" on public.parts for all to anon using (true) with check (true);
+grant select, insert, update, delete on public.users, public.cars, public.parts to service_role;

@@ -5,7 +5,7 @@ API construida con **Node.js + Express 5** que se conecta a **Supabase (PostgreS
 ## Ejecutar en local
 
 ```bash
-cp .env.example .env    # completa SUPABASE_URL y SUPABASE_ANON_KEY
+cp .env.example .env    # completa SUPABASE_URL y SUPABASE_SERVICE_KEY
 npm install
 npm run dev             # modo desarrollo (node --watch), puerto 4000
 npm start               # modo producción
@@ -18,7 +18,7 @@ Verificación: `GET http://localhost:4000/api/health` → `{"status":"ok"}`
 | Variable            | Obligatoria | Descripción                                                   |
 | ------------------- | ----------- | ------------------------------------------------------------- |
 | `SUPABASE_URL`      | Sí          | URL del proyecto de Supabase                                  |
-| `SUPABASE_ANON_KEY` | Sí          | anon key de Supabase                                          |
+| `SUPABASE_SERVICE_KEY` | Sí       | service_role / secret key de Supabase (secreta)               |
 | `FRONTEND_URL`      | En producción | Dominio(s) permitidos por CORS, separados por coma          |
 | `NODE_ENV`          | No          | `development` (por defecto) o `production`                    |
 | `PORT`              | No          | Puerto (por defecto 4000; Render lo asigna solo)              |

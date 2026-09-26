@@ -140,7 +140,7 @@ Decisiones:
 - **`ON DELETE RESTRICT`** en `cars.user_id`: no se puede eliminar un cliente que tenga automóviles; la API responde `409` con un mensaje claro. Así nunca quedan autos sin propietario.
 - **UNIQUE** en `users.email`, `cars.vin`, `cars.license_plate` y `parts.part_number`.
 - **CHECK** en `price >= 0`, `stock >= 0`, año entre 1900 y 2100, formato de VIN y de email.
-- **Row Level Security** habilitado con políticas explícitas para el rol que usa el backend.
+- **Row Level Security** habilitado sin políticas: solo el backend (con la service key) accede a los datos.
 
 El script completo está en [`database/schema.sql`](database/schema.sql).
 
@@ -154,7 +154,8 @@ El script completo está en [`database/schema.sql`](database/schema.sql).
 4. (Opcional) Ejecuta también `database/seed.sql` para cargar datos de ejemplo.
 5. Ve a **Project Settings → API** (o **Data API / API Keys**) y copia:
    - **Project URL** → `SUPABASE_URL`
-   - **anon public key** → `SUPABASE_ANON_KEY`
+   - **service_role key** (en proyectos nuevos: **secret key**) → `SUPABASE_SERVICE_KEY`
+     ⚠️ Esta llave es secreta: solo va en el backend, nunca en el frontend ni en Git.
 6. Verifica en **Table Editor** que existan las tablas `users`, `cars` y `parts`.
 
 ---
@@ -168,10 +169,10 @@ El script completo está en [`database/schema.sql`](database/schema.sql).
 | `PORT`              | Puerto local. En Render se asigna automáticamente.                                           | `4000`                                    |
 | `NODE_ENV`          | `development` o `production`.                                                                | `development`                             |
 | `SUPABASE_URL`      | URL del proyecto de Supabase. **Obligatoria.**                                               | `https://abcd.supabase.co`                |
-| `SUPABASE_ANON_KEY` | Llave anon del proyecto. **Obligatoria.**                                                    | `eyJhbGciOi...`                           |
+| `SUPABASE_SERVICE_KEY` | Llave service_role / secret del proyecto. **Obligatoria y secreta.**                     | `eyJhbGciOi...`                           |
 | `FRONTEND_URL`      | Dominio(s) del frontend permitidos por CORS, separados por coma, sin `/` final.              | `https://refaccionaria-web.onrender.com`  |
 
-Si falta `SUPABASE_URL` o `SUPABASE_ANON_KEY`, el servidor no arranca y muestra qué variable falta.
+Si falta `SUPABASE_URL` o `SUPABASE_SERVICE_KEY`, el servidor no arranca y muestra qué variable falta.
 
 ### Frontend (`frontend/.env`)
 
@@ -193,7 +194,7 @@ Requisitos: **Node.js 22.22 o superior** y un proyecto de Supabase con el esquem
 ```bash
 cd backend
 cp .env.example .env      # en Windows (PowerShell): Copy-Item .env.example .env
-# edita .env con tu SUPABASE_URL y SUPABASE_ANON_KEY
+# edita .env con tu SUPABASE_URL y SUPABASE_SERVICE_KEY
 npm install
 npm run dev               # http://localhost:4000  (se reinicia al guardar cambios)
 ```
@@ -446,7 +447,7 @@ En la sección **Environment**:
 | ------------------- | --------------------------------------------------------- |
 | `NODE_ENV`          | `production`                                              |
 | `SUPABASE_URL`      | URL de tu proyecto de Supabase                            |
-| `SUPABASE_ANON_KEY` | anon key de Supabase                                      |
+| `SUPABASE_SERVICE_KEY` | service_role / secret key de Supabase                  |
 | `FRONTEND_URL`      | Déjala pendiente por ahora; se completa en el paso 9      |
 
 No configures `PORT`: Render la asigna y el servidor usa `process.env.PORT`.
@@ -507,7 +508,7 @@ Render reiniciará el backend automáticamente.
 ### Alternativa: Blueprint (`render.yaml`)
 
 El repositorio incluye `render.yaml`. En Render: **New → Blueprint** → selecciona el repositorio;
-creará ambos servicios y pedirá `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `FRONTEND_URL` y `VITE_API_URL`.
+creará ambos servicios y pedirá `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `FRONTEND_URL` y `VITE_API_URL`.
 
 ---
 
@@ -521,5 +522,6 @@ creará ambos servicios y pedirá `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `FRONTEND
 - **Consultas parametrizadas**: `supabase-js` no concatena SQL, evitando inyección SQL. React escapa el contenido mostrado (evita XSS).
 - **`helmet`** agrega cabeceras HTTP de seguridad y el body JSON está limitado a 10 KB.
 - **Errores**: manejo centralizado; en producción los errores 500 no exponen detalles internos.
-- **Row Level Security** habilitado en Supabase con políticas explícitas.
-  Para un entorno más estricto podría usarse la *service role key* en el backend y eliminar las políticas del rol `anon`.
+- **Service key solo en el servidor + RLS sin políticas**: el backend usa la llave `service_role`, que omite RLS.
+  Las tablas tienen RLS activado y ninguna política, así que la anon key (que Supabase considera pública)
+  no puede leer ni modificar datos: la única puerta a la base de datos es la API, con sus validaciones.

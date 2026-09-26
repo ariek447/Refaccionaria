@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 // en Render se configuran desde el panel "Environment").
 dotenv.config({ quiet: true });
 
-const REQUIRED_VARIABLES = ['SUPABASE_URL', 'SUPABASE_ANON_KEY'];
+const REQUIRED_VARIABLES = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
 
 const missing = REQUIRED_VARIABLES.filter((name) => !process.env[name]);
 if (missing.length > 0) {
@@ -20,7 +20,7 @@ export const env = {
   nodeEnv,
   isProduction: nodeEnv === 'production',
   supabaseUrl: process.env.SUPABASE_URL,
-  supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
+  supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY,
   // Permite uno o varios dominios separados por coma, sin "/" final
   frontendUrls: (process.env.FRONTEND_URL || '')
     .split(',')
